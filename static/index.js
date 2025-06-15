@@ -128,14 +128,14 @@ let newHumidityXArray = [];
 let newHumidityYArray = [];
 
 // The maximum number of data points displayed on our scatter/line graph
-let MAX_GRAPH_POINTS = 12;
+let MAX_GRAPH_POINTS = 10000;
 let ctr = 0;
 
 function updateBoxes(temperature, humidity) {
   let temperatureDiv = document.getElementById("temperature");
   let humidityDiv = document.getElementById("humidity");
 
-  temperatureDiv.innerHTML = temperature + " C";
+  temperatureDiv.innerHTML = temperature + " f";
   humidityDiv.innerHTML = humidity + " %";
 }
 
@@ -194,6 +194,20 @@ function updateSensorReadings(jsonResponse) {
     newHumidityYArray,
     humidity
   );
+
+  // Assuming you receive 'data' from the backend
+  document.getElementById('timestamp').textContent = 'Last updated: ' + jsonResponse.timestamp;
+
+  // When you receive new data (jsonResponse):
+  temperatureTrace.x.push(jsonResponse.timestamp); // Use timestamp for x
+  temperatureTrace.y.push(jsonResponse.temperature);
+
+  humidityTrace.x.push(jsonResponse.timestamp); // Use timestamp for x
+  humidityTrace.y.push(jsonResponse.humidity);
+
+  // Then update/redraw the charts:
+  Plotly.update(temperatureHistoryDiv, { x: [temperatureTrace.x], y: [temperatureTrace.y] });
+  Plotly.update(humidityHistoryDiv, { x: [humidityTrace.x], y: [humidityTrace.y] });
 }
 /*
   SocketIO Code
@@ -205,4 +219,46 @@ var socket = io.connect();
 socket.on("updateSensorData", function (msg) {
   var sensorReadings = JSON.parse(msg);
   updateSensorReadings(sensorReadings);
+});
+
+// Example: receiving data from backend
+const weatherData = [
+  { temperature: 72, humidity: 50, timestamp: "2025-06-14T12:34:56" }
+];
+
+// Prepare data for Chart.js
+const tempData = weatherData.map(d => ({ x: d.timestamp, y: d.temperature }));
+
+// Initialize chart after DOM is ready and data is loaded
+const ctx = document.getElementById('weatherChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    datasets: [{
+      label: 'Temperature (°F)',
+      data: tempData,
+      borderColor: 'red'
+    }]
+  },
+  options: {
+    scales: {
+      x: {
+        type: 'time',
+        time: {
+          tooltipFormat: 'MMM d, yyyy HH:mm:ss',
+          displayFormats: { minute: 'HH:mm', hour: 'HH:mm' }
+        }
+      }
+    }
+  }
+});
+
+const MAX_POINTS = (60*60*72);
+
+socket.on('weather_update', function(data) {
+    tempData.push({ x: data.timestamp, y: data.temperature });
+    if (tempData.length > MAX_POINTS) {
+        tempData.shift(); // Remove the oldest point
+    }
+    chart.update();
 });
